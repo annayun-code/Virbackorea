@@ -1,11 +1,16 @@
 import streamlit as st
 import requests
 import pandas as pd
-from datetime import datetime
+import datetime
+from datetime import timedelta
 import re
 
-# 1. 웹페이지 기본 설정
-st.set_page_config(page_title="버박코리아 모니터링 시스템", page_icon="🐾", layout="wide")
+# 1. 웹페이지 기본 설정 (링크 공유 시 타이틀 및 미리보기 최적화)
+st.set_page_config(
+    page_title="버박코리아(Virbac) 올인원 모니터링 시스템", 
+    page_icon="🐾", 
+    layout="wide"
+)
 
 # 2. 네이버 API 키 설정 완료
 CLIENT_ID = "mpZq2kemw3VPbJwPf2cM"
@@ -14,7 +19,7 @@ CLIENT_SECRET = "qY_E8EjKcC"
 MY_BRAND = "버박"
 COMPETITORS = ["케어사이드", "오라틴", "페스룸", "푸르너스", "데크라", "조에티스", "베토퀴놀"]
 
-# 📌 스팸 노이즈 키워드 (요청하신 자동차 관련 단어 3개를 추가했습니다!)
+# 📌 스팸 노이즈 키워드 (자동차 튜닝/용품 관련 단어 완벽 차단)
 EXCLUDE_KEYWORDS = ["해외직구", "중고나라", "당근마켓", "네비게이션", "무선카플레이", "맥가이버박"]
 
 # 📌 업계 핫 트렌드 핵심 키워드
@@ -128,17 +133,27 @@ def load_smart_data():
         
     return df
 
-# 데이터 로드
+
+# --- UI 레이아웃 화면 그리기 ---
+st.title("🐾 버박코리아(Virbac) 올인원 마케팅 모니터링 시스템")
+
+# 💡 클라우드 서버 시차 해결: 세계 표준시(UTC)에 9시간을 더해 한국 표준시(KST)로 정확하게 표기
+seoul_time = datetime.datetime.utcnow() + timedelta(hours=9)
+st.markdown(f"**실시간 갱신 시간:** {seoul_time.strftime('%Y-%m-%d %H:%M:%S')} (한국 시간 기준)")
+
+# 💡 데이터 강제 새로고침 버튼 배치 (멈춰있는 캐시 파괴 기능)
+if st.button("🔄 실시간 데이터 즉시 업데이트"):
+    st.cache_data.clear()
+    st.rerun()
+
+st.divider()
+
+# 데이터 로드 실행
 try:
     df = load_smart_data()
 except Exception as e:
     st.error(f"데이터 로드 중 치명적인 오류가 발생했습니다. API 키를 확인해 주세요: {e}")
     df = pd.DataFrame()
-
-# --- UI 레이아웃 화면 그리기 ---
-st.title("🐾 버박코리아(Virbac) 올인원 마케팅 모니터링 시스템")
-st.markdown(f"**실시간 갱신 시간:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} (10분마다 캐시 갱신)")
-st.divider()
 
 if not df.empty:
     # 1. 상단 스코어보드 현황
