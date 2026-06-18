@@ -5,22 +5,27 @@ import datetime
 from datetime import timedelta
 import re
 
-# 1. 웹페이지 기본 설정 (링크 공유 시 타이틀 및 미리보기 최적화)
+# 1. 웹페이지 기본 설정 (미리보기 최적화)
 st.set_page_config(
     page_title="버박코리아(Virbac) 올인원 모니터링 시스템", 
     page_icon="🐾", 
     layout="wide"
 )
 
-# 2. 네이버 API 키 설정 완료
+# 2. 네이버 API 키 설정
 CLIENT_ID = "mpZq2kemw3VPbJwPf2cM"
 CLIENT_SECRET = "qY_E8EjKcC"
 
 MY_BRAND = "버박"
-COMPETITORS = ["케어사이드", "오라틴", "페스룸", "푸르너스", "데크라", "조에티스", "베토퀴놀", "녹십자수의약품", "MSD", "엘랑코", "세바", "베링거인겔하임"]
 
-# 📌 스팸 노이즈 키워드 (자동차 튜닝/용품 관련 단어 완벽 차단)
-EXCLUDE_KEYWORDS = ["해외직구", "중고나라", "당근마켓", "네비게이션", "무선카플레이", "맥가이버박", "자동차"]
+# 🔴 경쟁사 라인업 업데이트 (요청하신 5개 사 추가 완료!)
+COMPETITORS = [
+    "케어사이드", "오라틴", "페스룸", "푸르너스", "데크라", "조에티스", "베토퀴놀",
+    "MSD", "엘랑코", "녹십자수의약품", "세바", "베링거인겔하임"
+]
+
+# 📌 스팸 노이즈 키워드 
+EXCLUDE_KEYWORDS = ["해외직구", "중고나라", "당근마켓", "네비게이션", "무선카플레이", "맥가이버박"]
 
 # 📌 업계 핫 트렌드 핵심 키워드
 HOT_TRENDS = ["강아지 외이도염", "강아지 치석", "고양이 구내염", "강아지 영양제", "고양이 영양제"]
@@ -47,14 +52,10 @@ def classify_brand(title, description, channel_name):
         
     # 2. 자사 브랜드(버박) 분류 로직
     if MY_BRAND in combined_text:
-        # 뉴스 채널에 나온 버박 소식은 무조건 '핵심 비즈니스'로 분류
         if channel_name == "뉴스":
             return "버박 (핵심 비즈니스)"
-            
-        # 본사 핵심 키워드가 포함되어 있다면 블로그/카페라도 핵심 비즈니스
         if any(core_word.upper() in combined_text for core_word in MY_BRAND_CORE_KEYWORDS):
             return "버박 (핵심 비즈니스)"
-            
         return "버박 (일반 언급/기타)"
         
     # 3. 경쟁사 브랜드 검사
@@ -93,17 +94,20 @@ def load_smart_data():
     channels = ["news", "blog", "cafearticle"]
     channel_names = {"news": "뉴스", "blog": "블로그", "cafearticle": "네이버카페"}
     
-    brand_query = f"{MY_BRAND} | " + " | ".join(COMPETITORS)
+    # 💡 검색 효율화: 검색어가 너무 길어져 오류가 나지 않도록 핵심 쿼리 그룹 분할 조합
+    brand_query_1 = f"{MY_BRAND} | 케어사이드 | 오라틴 | 페스룸 | 푸르너스 | 데크라 | 조에티스"
+    brand_query_2 = "베토퀴놀 | MSD | 엘랑코 | 녹십자수의약품 | 세바 | 베링거인겔하임"
     trend_query = "강아지 귓병 | 고양이 치과 | 반려동물 헬스케어"
     
     order_idx = 0
     for channel in channels:
-        brand_items = fetch_naver_data(channel, brand_query, display_count=50)
-        trend_items = fetch_naver_data(channel, trend_query, display_count=30)
+        items_1 = fetch_naver_data(channel, brand_query_1, display_count=40)
+        items_2 = fetch_naver_data(channel, brand_query_2, display_count=40)
+        items_3 = fetch_naver_data(channel, trend_query, display_count=20)
         
         existing_links = set([raw["링크"] for raw in all_data] if all_data else [])
         
-        for item in (brand_items + trend_items):
+        for item in (items_1 + items_2 + items_3):
             link = item.get("link")
             if not link or link in existing_links: 
                 continue
@@ -133,22 +137,18 @@ def load_smart_data():
         
     return df
 
-
 # --- UI 레이아웃 화면 그리기 ---
 st.title("🐾 버박코리아(Virbac) 올인원 마케팅 모니터링 시스템")
 
-# 💡 클라우드 서버 시차 해결: 세계 표준시(UTC)에 9시간을 더해 한국 표준시(KST)로 정확하게 표기
 seoul_time = datetime.datetime.utcnow() + timedelta(hours=9)
 st.markdown(f"**실시간 갱신 시간:** {seoul_time.strftime('%Y-%m-%d %H:%M:%S')} (한국 시간 기준)")
 
-# 💡 데이터 강제 새로고침 버튼 배치 (멈춰있는 캐시 파괴 기능)
 if st.button("🔄 실시간 데이터 즉시 업데이트"):
     st.cache_data.clear()
     st.rerun()
 
 st.divider()
 
-# 데이터 로드 실행
 try:
     df = load_smart_data()
 except Exception as e:
@@ -179,7 +179,6 @@ if not df.empty:
     selected = st.sidebar.selectbox("모니터링 대상 선택", options=filter_options)
     selected_channel = st.sidebar.radio("채널 선택", options=["전체 채널", "뉴스", "블로그", "네이버카페"])
 
-    # 필터 적용 로직
     filtered_df = df.copy()
     if selected == "버박 (핵심 비즈니스)":
         filtered_df = filtered_df[filtered_df["분류"] == "버박 (핵심 비즈니스)"]
